@@ -1,0 +1,10 @@
+data/application_test.csv filter=lfs diff=lfs merge=lfs -text
+data/application_train.csv filter=lfs diff=lfs merge=lfs -text
+data/bureau_balance.csv filter=lfs diff=lfs merge=lfs -text
+data/bureau.csv filter=lfs diff=lfs merge=lfs -text
+data/installments_payments.csv filter=lfs diff=lfs merge=lfs -text
+data/previous_application.csv filter=lfs diff=lfs merge=lfs -text
+data/credit_card_balance.csv filter=lfs diff=lfs merge=lfs -text
+data/HomeCredit_columns_description.csv filter=lfs diff=lfs merge=lfs -text
+data/POS_CASH_balance.csv filter=lfs diff=lfs merge=lfs -text
+data/sample_submission.csv filter=lfs diff=lfs merge=lfs -text
