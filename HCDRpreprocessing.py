@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 import pandas as pd
 
 
-debug = True
+debug = False
 
 
 def Scale(df, y='TARGET'):
@@ -16,25 +16,34 @@ def Scale(df, y='TARGET'):
     if debug:
         print("Doing StandardScaler")
 
+#    print("\nInside Scale(): # of entries missing in data: \n{0}".format(df.isnull().sum()))
     scaler = StandardScaler()
+
+    skcol = []
+    for c in df.filter(regex='SK_ID*').columns:
+        skcol.append(c)
 
     # Don't scale target column!!
     keepTarget = False
     if y in df.columns:
         print("mean of target column before handling: {0}".format(df[y].mean()))
         keepTarget = True
-        targetdf = df[y]
-        df = df.drop(columns=[y])
+        skcol.append(y)
 
-    col_name = df.columns
+    targetdf = df[skcol].copy()
+
+    df = df.drop(columns=skcol)
+    xcol = df.columns
 
     scaleddf = scaler.fit_transform(df)
-    scaleddf = pd.DataFrame(scaleddf, columns = col_name)
+    scaleddf = pd.DataFrame(scaleddf, columns = xcol)
+    scaleddf['SK_ID_CURR'] = targetdf['SK_ID_CURR'].values 
 
-    if keepTarget:
-        scaleddf[y] = targetdf 
-        print("mean of target column after handling: {0}".format(scaleddf[y].mean()))
-
+    scaleddf = scaleddf.merge( targetdf, on='SK_ID_CURR' )
+    if debug:
+        print("\nInside Scale(): # rows in targetdf: {0}".format(targetdf.shape))
+        print("\nInside Scale(): # rows in df: {0}".format(df.shape))
+        print("\nInside Scale(): # rows in scaleddf: {0}".format(scaleddf.shape))
 
     return scaleddf
 
@@ -69,20 +78,22 @@ def tokenizeNames(df,col,namedict):
 
 def preprocess(df):
 
+    if debug:
+        print("\npreprocess (beginning): Number of entries missing in data: \n{0}".format(df.isnull().sum()))
+
     # Let's start with an ultrasimple na replace
     newdf = df.fillna(0)
     if debug:
         print("This dataset has the following datatypes:\n{0}\n".format(newdf.dtypes))
 
         # Some of the Fare entries are strings. 
-        dtypeCount_x =[df.iloc[:,i].apply(type).value_counts() for i in range(df.shape[1])]
-        print(dtypeCount_x)
-
+        if debug:
+            dtypeCount_x =[newdf.iloc[:,i].apply(type).value_counts() for i in range(newdf.shape[1])]
+            print(dtypeCount_x)
 
     stringcols = []
     for c in newdf.columns[newdf.dtypes=='object']:
         stringcols.append(c)
-    print("Columns with non-numerical values are:\n{0}".format(stringcols))
 
     for c in stringcols:
         if debug:
@@ -91,5 +102,8 @@ def preprocess(df):
         newdf[c] = tokenizeNames(newdf,c,tempdict)
 
     newdf = Scale(newdf)
+
+    if debug:
+        print("\npreprocess (end): Number of entries missing in data: \n{0}".format(newdf.isnull().sum()))
 
     return newdf

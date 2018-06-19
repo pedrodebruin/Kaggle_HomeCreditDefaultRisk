@@ -38,21 +38,25 @@ optimize_SVC_C = False
 optimize_SVC_kernel = False
 optimize_RandFor_nest = False
 
-usePreparedInputs = False
-
 
 def classify(inFolder='preparedData'):
-
 
         df_full_train = pd.read_csv(inFolder+'/prepdf_full_train.csv')
         df_full_xval = pd.read_csv(inFolder+'/prepdf_full_xval.csv')
         df_full_test = pd.read_csv(inFolder+'/prepdf_full_test.csv')
 
+#        for c in df_full_train.columns:
+#            if (np.any(np.isnan(df_full_train[c]))):
+#                print("Column {0} has bad values: {1}".format(c, df_full_train[c].tail()))
 
         # Split full df into x and y dfs
+        print(df_full_train.head())
+        print(df_full_train.describe())
         df_train_x = df_full_train
         df_train_x = df_train_x.drop(columns=['TARGET'])
         df_train_y = df_full_train['TARGET']
+        print(df_train_y.head())
+        print(df_train_y.describe())
         df_xval_x  = df_full_xval
         df_xval_x  = df_xval_x.drop(columns=['TARGET'])
         df_xval_y  = df_full_xval['TARGET']
@@ -74,8 +78,8 @@ def classify(inFolder='preparedData'):
         	  'Decision Tree': DecisionTreeClassifier( class_weight="balanced"),
                   'Random Forest': RandomForestClassifier(n_estimators=40, class_weight="balanced" ), 
 #        	  'K-Nearest Neighbors': KNeighborsClassifier(n_neighbors=1),
-                  'SVC (rbf)': SVC(kernel='rbf', gamma='auto', C=1.0, class_weight="balanced"), 
-                  'SVC (unbalanced, rbf)': SVC(kernel='rbf', gamma='auto', C=1.0), 
+#                  'SVC (rbf)': SVC(kernel='rbf', gamma='auto', C=1.0, class_weight="balanced"), 
+#                  'SVC (unbalanced, rbf)': SVC(kernel='rbf', gamma='auto', C=1.0), 
                   'Linear SVC': LinearSVC(class_weight="balanced"), 
 #                  'Nu SVC': NuSVC(), 
         	  'Neural Network': MLPClassifier(activation='identity', solver='lbfgs', alpha=15, hidden_layer_sizes=(3,10), random_state=1)}
@@ -148,19 +152,14 @@ def classify(inFolder='preparedData'):
 			frames_y = [ df_train_y, df_xval_y ]
 			fulltrain_x_df = pd.concat(frames_x)
 			fulltrain_y_df = pd.concat(frames_y)
-
-#                        print("Description of fulltrain_x_df:\n{0}".format(fulltrain_x_df.describe()))
-#                        print("Description of fulltrain_y_df:\n{0}".format(fulltrain_y_df.describe()))
-			print("Are all entries not NA? {0}".format(np.any(np.isnan(fulltrain_x_df))) )
-			print("Are all entries not NA? {0}".format(np.any(np.isnan(fulltrain_y_df))) )
+			print("Are any entries NA? {0}".format(np.any(np.isnan(fulltrain_x_df))) )
+			print("Are any entries NA? {0}".format(np.any(np.isnan(fulltrain_y_df))) )
 			print("Are all entries finite? {0}".format(np.all(np.isfinite(fulltrain_x_df))))
 			print("Are all entries finite? {0}".format(np.all(np.isfinite(fulltrain_y_df))))
 			clf = pipe.fit(fulltrain_x_df, fulltrain_y_df)		
 		else:
-#                        print("Description of df_train_x:\n{0}".format(df_train_x.describe()))
-#                        print("Description of df_train_y:\n{0}".format(df_train_y.describe()))
-			print("Are all entries not NA? {0}".format(np.any(np.isnan(df_train_x))))
-			print("Are all entries not NA? {0}".format(np.any(np.isnan(df_train_y))))
+			print("Are any entries not NA? {0}".format(np.any(np.isnan(df_train_x))))
+			print("Are any entries not NA? {0}".format(np.any(np.isnan(df_train_y))))
 			print("Are all entries finite? {0}".format(np.all(np.isfinite(df_train_x))))
 			print("Are all entries finite? {0}".format(np.all(np.isfinite(df_train_y))))
 			clf = pipe.fit(df_train_x, df_train_y)
