@@ -1,0 +1,1 @@
+{"Stone, brick": 1, "Wooden": 6, "Monolithic": 8, "0": 3, "Others": 7, "Mixed": 5, "Block": 2, "Panel": 4}

@@ -1,0 +1,1 @@
+{"Separated": 5, "Single / not married": 1, "Unknown": 6, "Married": 2, "Civil marriage": 3, "0": 0, "Widow": 4}

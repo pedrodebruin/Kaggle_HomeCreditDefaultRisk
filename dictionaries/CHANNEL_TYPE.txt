@@ -1,0 +1,1 @@
+{"Contact center": 8, "Stone": 6, "AP+ (Cash loan)": 5, "Channel of corporate sales": 7, "0": 1, "Country-wide": 4, "Regional / Local": 3, "Credit and cash offices": 2, "Car dealer": 9}

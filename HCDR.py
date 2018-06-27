@@ -20,7 +20,6 @@ from collections import OrderedDict
 # Let's use seaborn this time
 import seaborn as sns
 
-
 # Some general options
 debug = False # just a quick verbosity switch
 useAllTrainingData = False
@@ -33,8 +32,10 @@ optimize_SVC_kernel = False
 optimize_RandFor_nest = False
 
 prepareInputs = True
+CLASSIFY = False
 
-def makeInputs(outFolder='preparedData', Nrows = 100000, skipN=None):
+def makeInputs(outFolder='preparedData', Nrows = 100000, skipN=None, buildDictionaries=False):
+
 
         # Description and sample submission
         description = pd.read_csv('./data/HomeCredit_columns_description.csv')
@@ -100,20 +101,21 @@ def makeInputs(outFolder='preparedData', Nrows = 100000, skipN=None):
 
         # Execute preprocessing functions in HCDRpreprocessing.py
         print("\nPre-processing train data")
-        df_full_train = pp.preprocess(df_full_train)
+        df_full_train = pp.preprocess(df_full_train, buildDictionaries)
 	print("\nAfter preprocessing, # of entries missing in train data: \n{0}".format(df_full_train.isnull().sum()))
+
         print("\nPre-processing xval data")
-        df_full_xval = pp.preprocess(df_full_xval)
+        df_full_xval = pp.preprocess(df_full_xval, buildDictionaries)
 	print("\nAfter preprocessing, # of entries missing in xval data: \n{0}".format(df_full_xval.isnull().sum()))
+
         print("\nPre-processing test data")
-        df_full_test = pp.preprocess(df_full_test)
+        df_full_test = pp.preprocess(df_full_test, buildDictionaries)
 	print("\nAfter preprocessing, # of entries missing in test data: \n{0}" .format(df_full_test.isnull().sum()))
 
         df_full_train.to_csv(outFolder+'/prepdf_full_train.csv', index=False) 
         df_full_xval.to_csv(outFolder+'/prepdf_full_xval.csv', index=False) 
         df_full_test.to_csv(outFolder+'/prepdf_full_test.csv', index=False)
 	
-
 
 def main():
 
@@ -129,7 +131,7 @@ def main():
                     os.makedirs(outfolder)
                 makeInputs(outfolder, nrows, r)
             else:
-                outfolder = 'preparedData_{0}_rows_gt_{1}'.format(nrows, r.last())
+                outfolder = 'preparedData_{0}_rows_gt_{1}'.format(nrows, r[-1])
                 if not os.path.exists(outfolder):
                     os.makedirs(outfolder)
                 makeInputs(outfolder, nrows, r)
@@ -140,11 +142,12 @@ def main():
         print ("#"*100)
         print("\n")
 
-    for r in skiprange:
-        if r == None:
-            runClassifier.classify('preparedData_{0}_rows_1_to_{0}'.format(nrows) ) 
-        else:
-            runClassifier.classify('preparedData_{0}_rows_gt_{1}'.format(r.last()) ) 
+    if CLASSIFY:
+        for r in skiprange:
+            if r == None:
+                runClassifier.classify('preparedData_{0}_rows_1_to_{0}'.format(nrows) ) 
+            else:
+                runClassifier.classify('preparedData_{0}_rows_gt_{1}'.format(r[-1]) ) 
 
 
 if __name__=='__main__':

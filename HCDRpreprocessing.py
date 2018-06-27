@@ -5,11 +5,15 @@ from string import ascii_lowercase, ascii_uppercase
 # For mean/dev scaling. Important for PCA, and good practice in general
 from sklearn.preprocessing import StandardScaler
 
+import os
+
+from collections import OrderedDict
+
 import pandas as pd
 
+import json
 
-debug = False
-
+debug = True
 
 def Scale(df, y='TARGET'):
 
@@ -48,13 +52,9 @@ def Scale(df, y='TARGET'):
     return scaleddf
 
 
-def makeNameTokens(df, col):
-        name_dict = {}
+def makeNameTokens(df, col, name_dict):
 
-        # Useful for NA's
-        name_dict[0] = 0
-
-        numbervalue = 1
+        numbervalue = name_dict.values()[-1] + 1
         for i,row in df.iterrows():
                 name_cidx = df.columns.get_loc(col)
                 name_str = str(row[name_cidx])
@@ -69,14 +69,12 @@ def makeNameTokens(df, col):
 
 
 def tokenizeNames(df,col,namedict):
-    cidx = df.columns.get_loc(col)
 
-    newcol = df.apply(lambda row: namedict[ row[col] ], axis=1)
-
+    newcol = df[col].replace(namedict, regex=True)
     return newcol
 
 
-def preprocess(df):
+def preprocess(df, buildDictionaries):
 
     if debug:
         print("\npreprocess (beginning): Number of entries missing in data: \n{0}".format(df.isnull().sum()))
@@ -84,23 +82,54 @@ def preprocess(df):
     # Let's start with an ultrasimple na replace
     newdf = df.fillna(0)
     if debug:
-        print("This dataset has the following datatypes:\n{0}\n".format(newdf.dtypes))
-
-        # Some of the Fare entries are strings. 
-        if debug:
-            dtypeCount_x =[newdf.iloc[:,i].apply(type).value_counts() for i in range(newdf.shape[1])]
-            print(dtypeCount_x)
+        dtypeCount_x =[newdf.iloc[:,i].apply(type).value_counts() for i in range(newdf.shape[1])]
+        print(dtypeCount_x)
 
     stringcols = []
     for c in newdf.columns[newdf.dtypes=='object']:
         stringcols.append(c)
 
-    for c in stringcols:
-        if debug:
-                print("Building dictionary for column {0} with example values:\n{1}".format(c, newdf[c].head()))
-        tempdict = makeNameTokens(newdf,c)
-        newdf[c] = tokenizeNames(newdf,c,tempdict)
 
+    dictpath = "dictionaries"
+    if buildDictionaries:
+        for c in stringcols:
+    
+            # Name of dictionary file
+            dictname = dictpath+"/"+c+".txt"
+    
+            if os.path.exists(dictname):
+                with open(dictname) as f:
+                     c_dict = json.load(f)
+            else:
+                c_dict = {}
+                c_dict[0] = 0
+    
+            if debug:
+                    print("Building dictionary for column {0} with example values:\n{1}".format(c, newdf[c].head()))
+    
+            c_dict = makeNameTokens(newdf, c, c_dict) # append dictionaries for each column
+    
+            # write the dictionary to file
+            with open(dictname, 'w') as file:
+                 file.write(json.dumps(c_dict))
+
+    # Now replace string columns with tokens
+    for c in stringcols:
+        # Name of dictionary file
+        dictname = dictpath+"/"+c+".txt"
+
+        if os.path.exists(dictname):
+            with open(dictname) as f:
+                 c_dict = json.load(f)
+
+        newdf = newdf.replace({c: c_dict})
+
+    if debug:
+        print("After tokenizing")
+        dtypeCount_x =[newdf.iloc[:,i].apply(type).value_counts() for i in range(newdf.shape[1])]
+        print(dtypeCount_x)
+
+    # Scale variables after strings have been converted
     newdf = Scale(newdf)
 
     if debug:

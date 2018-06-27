@@ -1,0 +1,1 @@
+{"0": 0, "Revolving loans": 2, "Cash loans": 1}

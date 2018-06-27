@@ -1,0 +1,1 @@
+{"XNA": 3, "0": 1, "Cashless from the account of the employer": 5, "Cash through the bank": 2, "Non-cash from your account": 4}

@@ -1,0 +1,1 @@
+{"Co-op apartment": 6, "House / apartment": 1, "0": 0, "With parents": 3, "Rented apartment": 2, "Office apartment": 5, "Municipal apartment": 4}

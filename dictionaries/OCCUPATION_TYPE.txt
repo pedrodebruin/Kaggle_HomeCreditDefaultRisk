@@ -1,0 +1,1 @@
+{"Managers": 9, "Cleaning staff": 16, "Security staff": 11, "Waiters/barmen staff": 13, "HR staff": 19, "Sales staff": 6, "Drivers": 5, "Medicine staff": 10, "Private service staff": 8, "Accountants": 3, "0": 4, "Laborers": 1, "Cooking staff": 7, "IT staff": 18, "Core staff": 2, "High skill tech staff": 12, "Realty agents": 15, "Secretaries": 17, "Low-skill Laborers": 14}

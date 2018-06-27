@@ -1,0 +1,1 @@
+{"XNA": 6, "low_action": 4, "0": 1, "low_normal": 2, "high": 3, "middle": 5}

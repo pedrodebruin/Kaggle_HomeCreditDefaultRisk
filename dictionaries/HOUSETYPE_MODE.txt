@@ -1,0 +1,1 @@
+{"block of flats": 1, "0": 2, "specific housing": 3, "terraced house": 4}

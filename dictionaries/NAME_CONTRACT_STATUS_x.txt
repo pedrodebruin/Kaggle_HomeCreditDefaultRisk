@@ -1,0 +1,1 @@
+{"0": 1, "Canceled": 4, "Unused offer": 5, "Approved": 2, "Refused": 3}
