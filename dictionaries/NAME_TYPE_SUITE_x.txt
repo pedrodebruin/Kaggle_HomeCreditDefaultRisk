@@ -1,1 +1,1 @@
-{"Spouse, partner": 3, "Family": 2, "0": 6, "Group of people": 8, "Unaccompanied": 1, "Other_A": 5, "Other_B": 7, "Children": 4}
+{"Spouse, partner": 3, "Family": 2, "Other_A": 5, "Other_B": 7, "Unaccompanied": 1, "0": 6, "Group of people": 8, "Children": 4}

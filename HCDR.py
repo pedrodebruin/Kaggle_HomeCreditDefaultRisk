@@ -31,8 +31,13 @@ optimize_SVC_C = False
 optimize_SVC_kernel = False
 optimize_RandFor_nest = False
 
-prepareInputs = True
-CLASSIFY = False
+# Make new string to float dictionaries?
+builddicts = False
+# Remake input dataframes?
+prepareInputs = False
+# Actually run classifiers?
+CLASSIFY = True
+
 
 def makeInputs(outFolder='preparedData', Nrows = 100000, skipN=None, buildDictionaries=False):
 
@@ -122,19 +127,19 @@ def main():
     nrows = 100000
     skiprange = [ None, range(1,nrows), range(1,nrows*2), range(1,nrows*3) ]
 
+
     if prepareInputs:
         for r in skiprange:
-
             if r == None:
                 outfolder = 'preparedData_{0}_rows_1_to_{0}'.format(nrows) 
                 if not os.path.exists(outfolder):
                     os.makedirs(outfolder)
-                makeInputs(outfolder, nrows, r)
+                makeInputs(outfolder, nrows, r, builddicts)
             else:
                 outfolder = 'preparedData_{0}_rows_gt_{1}'.format(nrows, r[-1])
                 if not os.path.exists(outfolder):
                     os.makedirs(outfolder)
-                makeInputs(outfolder, nrows, r)
+                makeInputs(outfolder, nrows, r, builddicts)
 
         print("\n")
         print ("#"*100)
@@ -143,11 +148,8 @@ def main():
         print("\n")
 
     if CLASSIFY:
-        for r in skiprange:
-            if r == None:
-                runClassifier.classify('preparedData_{0}_rows_1_to_{0}'.format(nrows) ) 
-            else:
-                runClassifier.classify('preparedData_{0}_rows_gt_{1}'.format(r[-1]) ) 
+        folderList = [ 'preparedData_100000_rows_1_to_100000', 'preparedData_100000_rows_gt_99999', 'preparedData_100000_rows_gt_199999', 'preparedData_100000_rows_gt_299999' ]
+        runClassifier.classify( folderList )
 
 
 if __name__=='__main__':

@@ -13,7 +13,7 @@ import pandas as pd
 
 import json
 
-debug = True
+debug = False
 
 def Scale(df, y='TARGET'):
 
@@ -75,6 +75,10 @@ def tokenizeNames(df,col,namedict):
 
 
 def preprocess(df, buildDictionaries):
+
+    # test and xval df's are smaller, will run out of rows for high skipranges
+    if df.shape[0] == 0:
+        return df
 
     if debug:
         print("\npreprocess (beginning): Number of entries missing in data: \n{0}".format(df.isnull().sum()))

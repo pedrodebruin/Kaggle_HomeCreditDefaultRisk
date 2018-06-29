@@ -1,1 +1,1 @@
-{"XNA": 5, "0": 1, "Consumer loans": 3, "Cash loans": 2, "Revolving loans": 4}
+{"XNA": 5, "0": 1, "Consumer loans": 3, "Revolving loans": 4, "Cash loans": 2}

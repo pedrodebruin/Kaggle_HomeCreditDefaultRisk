@@ -1,1 +1,1 @@
-{"XNA": 6, "low_action": 4, "0": 1, "low_normal": 2, "high": 3, "middle": 5}
+{"high": 3, "low_action": 4, "middle": 5, "low_normal": 2, "XNA": 6, "0": 1}

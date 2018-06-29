@@ -1,1 +1,1 @@
-{"Consumer electronics": 3, "Jewelry": 6, "Connectivity": 4, "MLM partners": 12, "Industry": 8, "XNA": 2, "0": 1, "Construction": 7, "Auto technology": 11, "Tourism": 10, "Clothing": 9, "Furniture": 5}
+{"Consumer electronics": 3, "Jewelry": 6, "0": 1, "MLM partners": 12, "Industry": 8, "XNA": 2, "Connectivity": 4, "Construction": 7, "Auto technology": 11, "Tourism": 10, "Clothing": 9, "Furniture": 5}

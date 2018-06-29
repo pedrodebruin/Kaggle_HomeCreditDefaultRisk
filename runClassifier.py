@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 plt.style.use('classic')
 import re
 import string
+import glob
 
 # Useful for the models dictionary
 from collections import OrderedDict
@@ -28,7 +29,6 @@ from sklearn.neural_network import MLPClassifier
 
 # Some general options
 debug = False # just a quick verbosity switch
-NROWS = 10000
 useAllTrainingData = False
 
 optimize_NN_activation = False
@@ -39,15 +39,33 @@ optimize_SVC_kernel = False
 optimize_RandFor_nest = False
 
 
-def classify(inFolder='preparedData'):
+def classify(inputFolders=['preparedData']):
 
-        df_full_train = pd.read_csv(inFolder+'/prepdf_full_train.csv')
-        df_full_xval = pd.read_csv(inFolder+'/prepdf_full_xval.csv')
-        df_full_test = pd.read_csv(inFolder+'/prepdf_full_test.csv')
+        df_full_train = pd.DataFrame()
+        df_full_xval = pd.DataFrame()
+        df_full_test = pd.DataFrame()
+       
+        dftypes = ['train', 'xval', 'test' ]
+        for t in dftypes:
+            list_ = []
+            allFiles = []
+            frame = pd.DataFrame()
+            for d in inputFolders:
+                allFiles.append( d+"/prepdf_full_"+t+".csv" )
+                for file_ in allFiles:
+                    df = pd.read_csv(file_, index_col=None, header=0)
+                    list_.append(df)
 
-#        for c in df_full_train.columns:
-#            if (np.any(np.isnan(df_full_train[c]))):
-#                print("Column {0} has bad values: {1}".format(c, df_full_train[c].tail()))
+            frame = pd.concat(list_)
+
+            if t=='train':
+                df_full_train = frame
+            elif t=='xval':
+                df_full_xval = frame
+            elif t=='test':
+                df_full_test = frame
+        
+            del frame 
 
         # Split full df into x and y dfs
         print(df_full_train.head())
@@ -80,9 +98,9 @@ def classify(inFolder='preparedData'):
 #        	  'K-Nearest Neighbors': KNeighborsClassifier(n_neighbors=1),
 #                  'SVC (rbf)': SVC(kernel='rbf', gamma='auto', C=1.0, class_weight="balanced"), 
 #                  'SVC (unbalanced, rbf)': SVC(kernel='rbf', gamma='auto', C=1.0), 
-                  'Linear SVC': LinearSVC(class_weight="balanced"), 
+#                  'Linear SVC': SVC(kernel='rbf', C=1.0, class_weight="balanced", probability=True), 
 #                  'Nu SVC': NuSVC(), 
-        	  'Neural Network': MLPClassifier(activation='identity', solver='lbfgs', alpha=15, hidden_layer_sizes=(3,10), random_state=1)}
+        	  'Neural Network': MLPClassifier(activation='identity', solver='lbfgs', alpha=15, hidden_layer_sizes=(2,5), random_state=1)}
 
 
         # Parameter to be optimized. For now only have implemented 1-dimensional hyperparameter optimization
@@ -141,6 +159,8 @@ def classify(inFolder='preparedData'):
         xval_F1 = []
         modellist = []
 
+        print("\nUnique values in TARGET column:\n{0}".format(df_train_y.unique()))
+
         print("\nAbout to run classifier")
 
 	for modelname,model in models.items():
@@ -163,28 +183,26 @@ def classify(inFolder='preparedData'):
 			print("Are all entries finite? {0}".format(np.all(np.isfinite(df_train_x))))
 			print("Are all entries finite? {0}".format(np.all(np.isfinite(df_train_y))))
 			clf = pipe.fit(df_train_x, df_train_y)
-		train_y_prob = pipe.predict(df_train_x)  
-		xval_y_prob = pipe.predict(df_xval_x)
-		test_y_prob = pipe.predict(df_test_x)
+		train_y_prob = pipe.predict_proba(df_train_x)
+		xval_y_prob = pipe.predict_proba(df_xval_x)
+		test_y_prob = pipe.predict_proba(df_test_x)
 
-                # In this case we care about the probability, but here's the logical prediction anyway
-		train_y_pred = np.where(train_y_prob > 0.5, 1, 0)	
-		xval_y_pred = np.where(xval_y_prob > 0.5, 1, 0)	
-		test_y_pred = np.where(test_y_prob > 0.5, 1, 0)	
+#                # In this case we care about the probability, but here's the logical prediction anyway
+#		train_y_pred = np.where(train_y_prob > 0.5, 1, 0)	
+#		xval_y_pred = np.where(xval_y_prob > 0.5, 1, 0)	
+#		test_y_pred = np.where(test_y_prob > 0.5, 1, 0)	
 
                 modellist.append(modelname)
-                train_F1.append(f1_score(df_train_y, train_y_prob))
-                xval_F1.append(f1_score(df_xval_y, xval_y_prob))
+                train_F1.append(f1_score(df_train_y, train_y_prob[:,1]))
+                xval_F1.append(f1_score(df_xval_y, xval_y_prob[:,1]))
 
 		print("Classification report on training set:")
-		print(classification_report(df_train_y, train_y_prob))
+		print(classification_report(df_train_y, train_y_prob[:,1]))
 		print("\nClassification report on cross-validation set:")
-		print(classification_report(df_xval_y, xval_y_prob))
-		print("\n\n")
-		#print(confusion_matrix(train_y_df, train_y_pred))
-		#print(confusion_matrix(xval_y_df, xval_y_pred))
+		print(classification_report(df_xval_y, xval_y_prob[:,1]))
+#		print("\n\n")
 	
-		pred_df = pd.DataFrame( { 'SK_ID_CURR': df_full_test['SK_ID_CURR'], 'TARGET': test_y_prob })
+		pred_df = pd.DataFrame( { 'SK_ID_CURR': df_full_test['SK_ID_CURR'], 'TARGET': test_y_prob[:,1] })
 		outstring = modelname.replace(' ', '')
 		outstring = outstring.replace('-','')
 		pred_df.to_csv("data/prediction_"+outstring+".csv", index=False)

@@ -1,1 +1,1 @@
-{"Loan for working capital replenishment": 9, "Mortgage": 4, "Real estate loan": 8, "Another type of loan": 6, "0": 1, "Microloan": 8, "Car loan": 5, "Credit card": 3, "Consumer credit": 2, "Loan for business development": 7}
+{"Loan for working capital replenishment": 9, "Mortgage": 4, "0": 1, "Real estate loan": 8, "Another type of loan": 6, "Unknown type of loan": 8, "Microloan": 8, "Car loan": 5, "Credit card": 3, "Consumer credit": 2, "Loan for business development": 7}
