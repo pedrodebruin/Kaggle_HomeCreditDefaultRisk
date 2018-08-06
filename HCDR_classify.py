@@ -27,6 +27,10 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC,LinearSVC,NuSVC
 from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import KFold
+import lightgbm as lgb
+import gc
 
 # Some general options
 debug = False # just a quick verbosity switch
@@ -40,6 +44,216 @@ optimize_SVC_kernel = False
 optimize_RandFor = False
 optimize_AdaBoost = False
 
+# Threshold for predicting default
+defaultThreshold = 0.5
+
+def lgb_model(features, test_features, encoding = 'ohe', n_folds = 5):
+    
+    """Train and test a light gradient boosting model using
+    cross validation. 
+    
+    Parameters
+    --------
+        features (pd.DataFrame): 
+            dataframe of training features to use 
+            for training a model. Must include the TARGET column.
+        test_features (pd.DataFrame): 
+            dataframe of testing features to use
+            for making predictions with the model. 
+        encoding (str, default = 'ohe'): 
+            method for encoding categorical variables. Either 'ohe' for one-hot encoding or 'le' for integer label encoding
+            n_folds (int, default = 5): number of folds to use for cross validation
+        
+    Return
+    --------
+        submission (pd.DataFrame): 
+            dataframe with `SK_ID_CURR` and `TARGET` probabilities
+            predicted by the model.
+        feature_importances (pd.DataFrame): 
+            dataframe with the feature importances from the model.
+        valid_metrics (pd.DataFrame): 
+            dataframe with training and validation metrics (ROC AUC) for each fold and overall.
+        
+    """
+    
+    # Extract the ids
+    print(features.columns)
+    train_ids = features['SK_ID_CURR']
+    test_ids = test_features['SK_ID_CURR']
+    
+    # Extract the labels for training
+    labels = features['TARGET']
+    
+    # Remove the ids and target
+    features = features.drop(columns = ['SK_ID_CURR', 'TARGET'])
+    test_features = test_features.drop(columns = ['SK_ID_CURR'])
+    
+    
+    # One Hot Encoding
+    if encoding == 'ohe':
+        features = pd.get_dummies(features)
+        test_features = pd.get_dummies(test_features)
+        
+        # Align the dataframes by the columns
+        features, test_features = features.align(test_features, join = 'inner', axis = 1)
+        
+        # No categorical indices to record
+        cat_indices = 'auto'
+    
+    # Integer label encoding
+    elif encoding == 'le':
+        
+        # Create a label encoder
+        label_encoder = LabelEncoder()
+        
+        # List for storing categorical indices
+        cat_indices = []
+        
+        # Iterate through each column
+        for i, col in enumerate(features):
+            if features[col].dtype == 'object':
+                # Map the categorical features to integers
+                features[col] = label_encoder.fit_transform(np.array(features[col].astype(str)).reshape((-1,)))
+                test_features[col] = label_encoder.transform(np.array(test_features[col].astype(str)).reshape((-1,)))
+
+                # Record the categorical indices
+                cat_indices.append(i)
+    
+    # Catch error if label encoding scheme is not valid
+    else:
+        raise ValueError("Encoding must be either 'ohe' or 'le'")
+        
+    print('Training Data Shape: ', features.shape)
+    print('Testing Data Shape: ', test_features.shape)
+    
+    # Extract feature names
+    feature_names = list(features.columns)
+    
+    # Convert to np arrays
+    features = np.array(features)
+    test_features = np.array(test_features)
+    
+    # Create the kfold object
+    k_fold = KFold(n_splits = n_folds, shuffle = True)
+    
+    # Empty array for feature importances
+    feature_importance_values = np.zeros(len(feature_names))
+    
+    # Empty array for test predictions
+    test_predictions = np.zeros(test_features.shape[0])
+    
+    # Empty array for out of fold validation predictions
+    out_of_fold = np.zeros(features.shape[0])
+    
+    # Lists for recording validation and training scores
+    valid_scores = []
+    train_scores = []
+
+    # What type of metric to use
+    metric_str = 'binary_logloss'
+    
+    # Iterate through each fold
+    for train_indices, valid_indices in k_fold.split(features):
+        
+        # Training data for the fold
+        train_features, train_labels = features[train_indices], labels[train_indices]
+        # Validation data for the fold
+        valid_features, valid_labels = features[valid_indices], labels[valid_indices]
+
+#        lg = lgb.LGBMClassifier(n_estimators=10000, 
+#                                   objective = 'binary', 
+##                                   class_weight = 'balanced', 
+#                                   reg_alpha = 0.1, reg_lambda = 0.1, 
+#                                   subsample = 0.8, n_jobs = -1, verbose=200)
+#
+#        param_dist = {"max_depth": [-1],
+#                      "learning_rate" : [0.5],
+#                      "num_leaves": [30, 40, 50]
+#        }
+#        grid_search = GridSearchCV(lg, n_jobs=-1, param_grid=param_dist, cv = 5, scoring="roc_auc", verbose=5)
+#        grid_search.fit(train_features, train_labels, 
+#                 eval_set = [(valid_features, valid_labels), (train_features, train_labels)],
+#                 eval_names = ['valid', 'train'], categorical_feature = cat_indices)
+#
+#        # Record the best iteration
+#        model = grid_search.best_estimator_
+#        best_iteration = model.best_iteration_
+        
+        # Create the model
+        model = lgb.LGBMClassifier(n_estimators=10000, objective = 'binary', 
+                                   class_weight = 'balanced', 
+                                   learning_rate = 1.,
+                                   feature_fraction = 0.1,
+                                   num_leaves = 100,
+                                   max_depth = 15, 
+                                   reg_alpha = 1., reg_lambda = 1., 
+                                   subsample = 0.8, n_jobs = -1)
+        
+        # Train the model
+        model.fit(train_features, train_labels, eval_metric = metric_str,
+                  eval_set = [(valid_features, valid_labels), (train_features, train_labels)],
+                  eval_names = ['valid', 'train'], categorical_feature = cat_indices,
+                  early_stopping_rounds = 100, verbose = 200)
+
+        best_iteration = model.best_iteration_
+        
+        # Record the feature importances
+        feature_importance_values += model.feature_importances_ / k_fold.n_splits
+        
+        # Make predictions
+        test_predictions += model.predict_proba(test_features, num_iteration = best_iteration)[:, 1] / k_fold.n_splits
+        
+        # Record the out of fold predictions
+        out_of_fold[valid_indices] = model.predict_proba(valid_features, num_iteration = best_iteration)[:, 1]
+        
+        # Record the best score
+        valid_score = model.best_score_['valid'][metric_str]
+        train_score = model.best_score_['train'][metric_str]
+        
+        valid_scores.append(valid_score)
+        train_scores.append(train_score)
+        
+        # Clean up memory
+        gc.enable()
+        del model, train_features, valid_features
+        gc.collect()
+        
+    # Make the submission dataframe
+    submission = pd.DataFrame({'SK_ID_CURR': test_ids, 'TARGET': test_predictions})
+    
+    # Make the feature importance dataframe
+    feature_importances = pd.DataFrame({'feature': feature_names, 'importance': feature_importance_values})
+    
+    # Overall validation score
+    valid_auc = roc_auc_score(labels, out_of_fold)
+    
+    # Add the overall scores to the metrics
+    valid_scores.append(valid_auc)
+    train_scores.append(np.mean(train_scores))
+    
+    # Needed for creating dataframe of validation scores
+    fold_names = list(range(n_folds))
+    fold_names.append('overall')
+    
+    # Dataframe of validation scores
+    metrics = pd.DataFrame({'fold': fold_names,
+                            'train': train_scores,
+                            'valid': valid_scores}) 
+    
+    return submission, feature_importances, metrics
+
+
+def plot_scores( dflist, targetCol, name="" ):
+    
+    fig, ax = plt.subplots()
+    colors = ['red', 'blue', 'green', 'black']
+    for i,df in enumerate(dflist):
+         ax.hist( df[targetCol+'_prob'], color=colors[i], density=True )
+
+    ax.legend()
+    
+    plt.savefig('plots/'+name+'.png')
+    
 
 def classify(inputFolders, doPCA):
 
@@ -110,6 +324,7 @@ def classify(inputFolders, doPCA):
 	keys = []
 	scores = []
         models = OrderedDict()
+        # Regressors don't have predict_proba, make sure the modelname has 'Regressor' so the later if statement protects
         models = {
 #                  'Logistic Regression': LogisticRegression(solver='sag', class_weight='balanced'), 
 #        	  'DecisionTreeRegressor max10': DecisionTreeRegressor( max_features='auto', max_depth=10),
@@ -123,16 +338,32 @@ def classify(inputFolders, doPCA):
 #                  'SGDClassifier_alpha10m6': SGDClassifier(loss = 'modified_huber', alpha=0.000001, max_iter=500, class_weight='balanced'),
 #                  'SGDClassifier_alpha10m5': SGDClassifier(loss = 'modified_huber', alpha=0.00001, max_iter=500, class_weight='balanced'),
 #                  'SGDClassifier_alpha10m4': SGDClassifier(loss = 'modified_huber', alpha=0.0001, max_iter=500, class_weight='balanced'),
-                  'Random Forest_max5': RandomForestClassifier(n_estimators=50, class_weight="balanced", max_depth=5 ), 
-                  'Random Forest_max10': RandomForestClassifier(n_estimators=200, class_weight="balanced", max_depth=10 ), 
-                  'Random Forest_max20': RandomForestClassifier(n_estimators=200, class_weight="balanced", max_depth=20 ), 
+#                  'Random Forest_n50_md5': RandomForestClassifier(n_estimators=50, max_depth=5, n_jobs=-1), 
+#                  'Random Forest_n50_md10': RandomForestClassifier(n_estimators=50, max_depth=10, n_jobs=-1), 
+#                  'Random Forest_n50_md15': RandomForestClassifier(n_estimators=50, max_depth=15, n_jobs=-1), 
+#                  'Random Forest_n50_md15_mf20': RandomForestClassifier(n_estimators=50, max_depth=15, max_features = 20, n_jobs=-1), 
+#                  'Random Forest_n50_md15_mf30': RandomForestClassifier(n_estimators=50, max_depth=15, max_features = 30, n_jobs=-1), 
+#                  'Random Forest_n50_md15_mf40': RandomForestClassifier(n_estimators=50, max_depth=15, max_features = 40, n_jobs=-1), 
+#                  'Random Forest_n100_md15_mf40': RandomForestClassifier(n_estimators=100, max_depth=15, max_features = 40, n_jobs=-1), 
+                  'Random Forest_n100_md10_mfNone': RandomForestClassifier(n_estimators=100, max_depth=10, max_features = None, n_jobs=-1), 
+                  'Random Forest_n150_md10_mfNone': RandomForestClassifier(n_estimators=150, max_depth=10, max_features = None, n_jobs=-1), 
+                  'Random Forest_n200_md10_mfNone': RandomForestClassifier(n_estimators=200, max_depth=10, max_features = None, n_jobs=-1), 
+#                  'Random Forest_n50_md5': RandomForestClassifier(n_estimators=50, n_jobs=-1), 
+#                  'Random_Forest_n200_md10': RandomForestClassifier(n_estimators=200, class_weight="balanced", max_depth=10 ), 
+#                  'Random_Forest_n200_md15': RandomForestClassifier(n_estimators=200, class_weight="balanced", max_depth=15 ), 
+#                  'Random_Forest_n200_md20': RandomForestClassifier(n_estimators=200, class_weight="balanced", max_depth=20 ), 
+#                  'Random_Forest_n200_md30': RandomForestClassifier(n_estimators=200, class_weight="balanced", max_depth=30 ), 
+#                  'Random_Forest_n200_md40': RandomForestClassifier(n_estimators=200, class_weight="balanced", max_depth=40 ), 
+#                  'Random_Forest_Regressor_n50_md10': RandomForestRegressor(n_estimators=50, max_depth=10 ), 
+#                  'Random_Forest_Regressor_n200_md20': RandomForestRegressor(n_estimators=200, max_depth=20 ), 
+#                  'Random_Forest_Regressor_n250_md25': RandomForestRegressor(n_estimators=250, max_depth=25 ), 
 #        	  'K-Nearest Neighbors_5': KNeighborsClassifier(n_neighbors=5, weights='distance'),
 #        	  'K-Nearest Neighbors_10': KNeighborsClassifier(n_neighbors=10, weights='distance'),
 #        	  'K-Nearest Neighbors_15': KNeighborsClassifier(n_neighbors=15, weights='distance'),
 #        	  'K-Nearest Neighbors_20': KNeighborsClassifier(n_neighbors=20, weights='distance'),
 #        	  'K-Nearest Neighbors_30': KNeighborsClassifier(n_neighbors=30, weights='distance'),
 #        	  'K-Nearest Neighbors_50': KNeighborsClassifier(n_neighbors=50, weights='distance'),
-#                  'SVC (rbf)': SVC(kernel='rbf', gamma='auto', C=1.0, class_weight="balanced"), 
+#                  'SVC_rbf': SVC(kernel='rbf', gamma='auto', C=1.0, class_weight="balanced", probability=True), 
 #                  'SVC (unbalanced, rbf)': SVC(kernel='rbf', gamma='auto', C=1.0), 
 #                  'Linear SVC': SVC(kernel='rbf', C=1.0, class_weight="balanced", probability=True), 
 #                  'Nu SVC': NuSVC(), 
@@ -193,13 +424,13 @@ def classify(inputFolders, doPCA):
             paramlist = [ 'relu', 'identity', 'tanh', 'logistic' ]
             for p in paramlist:
                     modelname = 'Neural Network alpha_{0}'.format(p)
-                    models[modelname] = MLPClassifier(activation=p, solver='lbfgs', alpha=15, hidden_layer_sizes=(2,6), random_state=1)
+                    models[modelname] = MLPClassifier(activation=p, solver='lbfgs', alpha=15, hidden_layer_sizes=(2,6))
 
         if optimize_NN_alpha:
             paramlist = [ 1e-5*pow(1.1,x) for x in range (1,50) ]
             for p in paramlist:
                     modelname = 'Neural Network alpha_{0}'.format(str(m_alpha))
-                    models[modelname] = MLPClassifier(activation='relu', solver='lbfgs', alpha=p, hidden_layer_sizes=(2,6), random_state=1)
+                    models[modelname] = MLPClassifier(activation='relu', solver='lbfgs', alpha=p, hidden_layer_sizes=(2,6))
 
         if optimize_NN_layer:
             layer1list = range(2,10)
@@ -208,7 +439,7 @@ def classify(inputFolders, doPCA):
                 for l2 in layer2list:
                     paramlist.append(10*l1 + l2)
                     modelname = 'Neural Network layers_{0}{1}'.format(str(l1),str(l2))
-                    models[modelname] = MLPClassifier(activation='relu', solver='lbfgs', alpha=15, hidden_layer_sizes=(l1,l2), random_state=1)
+                    models[modelname] = MLPClassifier(activation='relu', solver='lbfgs', alpha=15, hidden_layer_sizes=(l1,l2))
         ####################################################################################################
 
         # For plotting results
@@ -262,7 +493,7 @@ def classify(inputFolders, doPCA):
                     train_y_pred = pd.DataFrame( pipe.predict(df_train_x[features]), columns = [targetCol+'_prob'] )
                 else:
                     train_y_pred = pd.DataFrame( pipe.predict_proba(df_train_x[features])[:,1], columns = [targetCol+'_prob'] )
-                train_y_pred[targetCol+'_pred'] = train_y_pred[targetCol+'_prob'].apply( lambda x: int(round(x)) )
+                train_y_pred[targetCol+'_pred'] = train_y_pred[targetCol+'_prob'].apply(lambda x: 0 if x < defaultThreshold else 1)
                 train_y_pred[idxCol] = df_train_x[[idxCol]]
                 train_y_pred[targetCol+'_orig'] = df_train_y[ targetCol ]
                 train_y_pred = train_y_pred[ [ idxCol, targetCol+'_prob', targetCol+'_pred', targetCol+'_orig' ] ]
@@ -271,7 +502,7 @@ def classify(inputFolders, doPCA):
                     xval_y_pred = pd.DataFrame( pipe.predict(df_xval_x[features]), columns = [targetCol+'_prob'] )
                 else:
                     xval_y_pred = pd.DataFrame(pipe.predict_proba(df_xval_x[features])[:,1], columns = [targetCol+'_prob'])
-                xval_y_pred[targetCol+'_pred'] = xval_y_pred[targetCol+'_prob'].apply( lambda x: int(round(x)) )
+                xval_y_pred[targetCol+'_pred'] = xval_y_pred[targetCol+'_prob'].apply(lambda x: 0 if x < defaultThreshold else 1)
                 xval_y_pred[idxCol] = df_xval_x[[idxCol]]
                 xval_y_pred[targetCol+'_orig'] = df_xval_y[ targetCol ]
                 xval_y_pred = xval_y_pred[ [ idxCol, targetCol+'_prob', targetCol+'_pred', targetCol+'_orig' ] ]
@@ -285,8 +516,8 @@ def classify(inputFolders, doPCA):
                 xval_F1.append(f1_score(df_xval_y[targetCol], xval_y_pred[targetCol+'_pred']))
 		print("\nClassification report on cross-validation set:")
 		print( classification_report(df_xval_y[targetCol], xval_y_pred[targetCol+'_pred']) )
-                print( accuracy_score(xval_y_pred[targetCol+'_orig'], xval_y_pred[targetCol+'_pred']) )
-                print( roc_auc_score(xval_y_pred[targetCol+'_orig'], xval_y_pred[targetCol+'_prob']) )
+                print("acc_score: {}".format(accuracy_score(xval_y_pred[targetCol+'_orig'], xval_y_pred[targetCol+'_pred'])) )
+                print("AUROC: {}".format(roc_auc_score(xval_y_pred[targetCol+'_orig'], xval_y_pred[targetCol+'_prob'])) )
 		print("\n")
 	
                 # Test set stuff:
@@ -304,18 +535,10 @@ def classify(inputFolders, doPCA):
 		xval_y_pred.to_csv("predictions/prediction_xval_"+outstring+".csv", index=False)
 		test_y_pred.to_csv("predictions/prediction_test_"+outstring+".csv", index=False)
 
+                plot_scores( [train_y_pred, xval_y_pred], 'TARGET', name = modelname )
+
 
         print("\nPerformance of all-zero prediction:")
-        print(accuracy_score(np.zeros(xval_y_pred.shape[0]),xval_y_pred[targetCol+'_pred']))
-        print()
+        print(accuracy_score(np.zeros(xval_y_pred.shape[0]),xval_y_pred[targetCol+'_orig']))
 
-        plt.plot(modellist,train_F1, 'bo--', linewidth=2)
-        plt.plot(modellist,xval_F1, 'rx--', linewidth=2)
-	plt.xlabel('Model Used')
-        plt.xticks(modellist, modellist, rotation='vertical')
-	plt.ylabel('F1 score')
-        plt.ylim(0.5, 1.0)
-        plt.tight_layout()
-        plt.show()
- 
 
